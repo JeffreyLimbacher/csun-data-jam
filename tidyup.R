@@ -35,6 +35,13 @@ library(stringr) # for str_match
     fact_labels=factor_mapping$description;
     health_labeled[var]=factor(health_labeled[[var]], fact_levels, labels = fact_labels)
   }
-  health_labeled
+  #Change large values to NA
+  health_labeled %>%
+    mutate(HEALTHED=ifelse(HEALTHED>5, NA, HEALTHED),
+           CGPATOT=ifelse(CGPATOT>5, NA, CGPATOT),
+           CGPASTEM=ifelse(CGPASTEM>5, NA, CGPASTEM),
+           CRPWB=ifelse(CRPWB>5, NA, CRPWB),
+           CSCLBELNG=ifelse(CSCLBELNG>5, NA, CSCLBELNG),
+           SOCSPPT=ifelse(SOCSPPT>5, NA, SOCSPPT))
 }
 health=readData()
