@@ -42,6 +42,8 @@ library(stringr) # for str_match
            CGPASTEM=ifelse(CGPASTEM>5, NA, CGPASTEM),
            CRPWB=ifelse(CRPWB>5, NA, CRPWB),
            CSCLBELNG=ifelse(CSCLBELNG>5, NA, CSCLBELNG),
-           SOCSPPT=ifelse(SOCSPPT>5, NA, SOCSPPT))
+           SOCSPPT=ifelse(SOCSPPT>5, NA, SOCSPPT),
+           CGRADE=ifelse(CGRADE>12, NA, CGRADE),
+           CAGE=ifelse(CAGE>20, NA, CAGE))
 }
 health=readData()
