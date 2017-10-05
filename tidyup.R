@@ -37,7 +37,7 @@ library(stringr) # for str_match
   }
   #Change large values to NA
   health_labeled %>%
-    mutate(HEALTHED=ifelse(HEALTHED>5, NA, HEALTHED),
+    mutate(HEALTHED=ifelse(HEALTHED>20, NA, HEALTHED),
            CGPATOT=ifelse(CGPATOT>5, NA, CGPATOT),
            CGPASTEM=ifelse(CGPASTEM>5, NA, CGPASTEM),
            CRPWB=ifelse(CRPWB>5, NA, CRPWB),
