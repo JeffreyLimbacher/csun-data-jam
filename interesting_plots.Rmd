@@ -1,0 +1,119 @@
+---
+title: "Interesting Plots"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+source("tidyup.R")
+```
+
+```{r, echo=FALSE}
+health %>%
+  filter(BIO_SEX!="Refused") %>%
+  ggplot() +
+  geom_histogram(aes(CGPATOT,..density..),binwidth=.25) +
+  facet_wrap(~BIO_SEX)
+```
+```{r, echo=TRUE}
+dh_visits <- health %>%
+  filter(!(DENTXMW1 %in% c("Refused", "Don't know", "Not applicable")),
+         !(PHYSXMW1 %in% c("Refused", "Don't know", "Not applicable")))
+
+dh_visits %>%
+  group_by(DENTXMW1,PHYSXMW1) %>%
+  summarise(n=n())
+
+dh_visits %>%
+  ggplot() +
+  geom_histogram(aes(CGPATOT,..density..),binwidth=.25) +
+  facet_grid(DENTXMW1 ~ PHYSXMW1)
+```
+
+```{r, echo=FALSE}
+
+```
+
+Plot that breaks down race versus health
+
+```{r, echo=FALSE}
+health %>%
+  filter(GENHTHW1 %in% c("Excellent","Very Good","Good","Fair","Poor") & !is.na(FAMRACE)) %>%
+  ggplot() + 
+  geom_bar(aes(x=GENHTHW1,y=..prop..,group=1)) +
+  facet_wrap(~FAMRACE)
+```
+
+```{r, echo=FALSE}
+health <- health %>% 
+  mutate(HASDAD=DUSBORN!="Legitimate skip (no DAD)",
+         HASMOM=MUSBORN!="Legitimate skip (no MOM)")
+
+health$PARENTS<-character(nrow(health))
+health$PARENTS[health$HASDAD&health$HASMOM]="Both parents"
+health$PARENTS[!health$HASDAD&health$HASMOM]="Mom only"
+health$PARENTS[health$HASDAD&!health$HASMOM]="Dad only"
+health$PARENTS[!health$HASDAD&!health$HASMOM]="Neither"
+
+health %>%
+  ggplot() +
+  geom_bar(aes(x=PARENTS))
+```
+
+```{r, echo=FALSE}
+health %>%
+  ggplot() +
+  geom_density(aes(CGPATOT)) +
+  facet_wrap(~PARENTS)
+```
+
+```{r, echo=FALSE}
+health %>%
+  ggplot() +
+  geom_bar(aes(CGPASTEM)) +
+  facet_wrap(~PARENTS)
+```
+
+A Two-Way ANOVA of parents effect on GPA
+```{r, echo=TRUE}
+modvar<-health %>%
+  select(CGPASTEM,HASMOM,HASDAD) %>%
+  filter(!is.na(CGPASTEM)) %>%
+  group_by(HASMOM,HASDAD)
+
+pmod<-lm(CGPASTEM ~ HASMOM + HASDAD, data=modvar)
+anova(pmod)
+```
+
+```{r echo=TRUE}
+health$BOTHPAR=health$HASDAD&health$HASMOM
+
+modvar <- health %>%
+  mutate(BOTHPAR=HASMOM&HASDAD) %>%
+  filter(!is.na(CGPATOT)) %>%
+  select(CGPATOT,BOTHPAR) %>%
+  group_by(BOTHPAR) %>%
+  sample_n(50)
+```
+
+```{r echo=TRUE}
+health %>% 
+  group_by(BOTHPAR) %>%
+  summarise(GPAVG=mean(CGPATOT,na.rm=TRUE))
+```
+
+```{r echo=TRUE}
+summary(lm(CGPATOT ~ FAMRACE, data=select(health,-CGPASTEM,-AID,-CAGE)))
+```
+
+```{r echo=TRUE}
+health %>%
+  ggplot() +
+  geom_bar(aes(FAMRACE)) +
+  coord_flip()
+
+```
+
+```{r echo=TRUE}
+summary(lm(CGPATOT ~ CGPASTEM, data=health))
+```
