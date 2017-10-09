@@ -61,9 +61,6 @@ dh_visits %>%
   facet_grid(DENTXMW1 ~ PHYSXMW1)
 ```
 
-```{r, echo=FALSE}
-
-```
 
 Plot that breaks down race versus health
 
@@ -118,13 +115,7 @@ health %>%
 summary(lm(CGPATOT ~ FAMRACE, data=select(health,-CGPASTEM,-AID,-CAGE)))
 ```
 
-```{r echo=TRUE}
-health %>%
-  ggplot() +
-  geom_bar(aes(FAMRACE)) +
-  coord_flip()
 
-```
 
 ```{r echo=TRUE}
 summary(lm(CGPATOT ~ CGPASTEM, data=health))
@@ -135,6 +126,14 @@ health %>% group_by(PHYSXMW1,DENTXMW1) %>% summarise(n=n()) %>% ggplot(aes(x=PHY
 ```
 
 This data does not seem like a representative sample of the actual high school population. It seems that, in particular, African Americans are way underrepresented. Enrollment of African Americans in school was 15% in 2008 (source: https://www.census.gov/prod/2011pubs/p20-564.pdf). Even though enrollment proportions are non-stationary, there shouldn't be a 25x increase from 1994/5 to 2008 of the enrollment of African American students. In addition, Native American students seem over represented, but I don't have a source to back this up.
+```{r echo=TRUE}
+health %>%
+  ggplot() +
+  geom_bar(aes(FAMRACE)) +
+  coord_flip()
+
+```
+
 ```{r, echo=TRUE}
 health_full %>%
   group_by(FAMRACE) %>%
