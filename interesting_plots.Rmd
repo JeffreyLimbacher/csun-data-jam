@@ -6,6 +6,37 @@ output: pdf_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 source("tidyup.R")
+#now health stores the data. SPlit it up so we have a exploratory set, a query set, and a confirmation set.
+
+set.seed(927)
+sample_inds<-seq(1,nrow(health))
+train_set<-sample(sample_inds,floor(.6*nrow(health)))
+
+#remove the indices we already sampled
+rem_sample_inds<-sample_inds[!(sample_inds %in% train_set)]
+#build the confirmation and query set from the remaining indices
+confirmation_set<-sample(rem_sample_inds,.5*length(rem_sample_inds))
+query_set<-rem_sample_inds[!(rem_sample_inds %in% confirmation_set)]
+
+health_full<-health
+#break up the table. Store the training set in health so the rest of the code works.
+health_query<-health[query_set,]
+health_confirm<-health[confirmation_set,]
+health<-health[train_set,]
+```
+
+
+```{r, echo=FALSE}
+plot_Missing <- function(data_in, title = NULL){
+  temp_df <- as.data.frame(ifelse(is.na(data_in), 0, 1))
+  temp_df <- temp_df[,order(colSums(temp_df))]
+  data_temp <- expand.grid(list(x = 1:nrow(temp_df), y = colnames(temp_df)))
+  data_temp$m <- as.vector(as.matrix(temp_df))
+  data_temp <- data.frame(x = unlist(data_temp$x), y = unlist(data_temp$y), m = unlist(data_temp$m))
+  ggplot(data_temp) + geom_tile(aes(x=x, y=y, fill=factor(m))) + scale_fill_manual(values=c("white", "black"), name="Missing\n(0=Yes, 1=No)") + theme_light() + ylab("") + xlab("") + ggtitle(title)
+}
+
+plot_Missing(health)
 ```
 
 ```{r, echo=FALSE}
@@ -45,15 +76,6 @@ health %>%
 ```
 
 ```{r, echo=FALSE}
-health <- health %>% 
-  mutate(HASDAD=DUSBORN!="Legitimate skip (no DAD)",
-         HASMOM=MUSBORN!="Legitimate skip (no MOM)")
-
-health$PARENTS<-character(nrow(health))
-health$PARENTS[health$HASDAD&health$HASMOM]="Both parents"
-health$PARENTS[!health$HASDAD&health$HASMOM]="Mom only"
-health$PARENTS[health$HASDAD&!health$HASMOM]="Dad only"
-health$PARENTS[!health$HASDAD&!health$HASMOM]="Neither"
 
 health %>%
   ggplot() +
@@ -85,20 +107,10 @@ pmod<-lm(CGPASTEM ~ HASMOM + HASDAD, data=modvar)
 anova(pmod)
 ```
 
-```{r echo=TRUE}
-health$BOTHPAR=health$HASDAD&health$HASMOM
-
-modvar <- health %>%
-  mutate(BOTHPAR=HASMOM&HASDAD) %>%
-  filter(!is.na(CGPATOT)) %>%
-  select(CGPATOT,BOTHPAR) %>%
-  group_by(BOTHPAR) %>%
-  sample_n(50)
-```
 
 ```{r echo=TRUE}
 health %>% 
-  group_by(BOTHPAR) %>%
+  group_by(PARENTS) %>%
   summarise(GPAVG=mean(CGPATOT,na.rm=TRUE))
 ```
 
@@ -116,4 +128,45 @@ health %>%
 
 ```{r echo=TRUE}
 summary(lm(CGPATOT ~ CGPASTEM, data=health))
+```
+
+```{r echo=FALSE}
+health %>% group_by(PHYSXMW1,DENTXMW1) %>% summarise(n=n()) %>% ggplot(aes(x=PHYSXMW1,DENTXMW1)) + geom_tile(aes(fill=n)) + geom_label(aes(label=n))
+```
+
+This data does not seem like a representative sample of the actual high school population. It seems that, in particular, African Americans are way underrepresented. Enrollment of African Americans in school was 15% in 2008 (source: https://www.census.gov/prod/2011pubs/p20-564.pdf). Even though enrollment proportions are non-stationary, there shouldn't be a 25x increase from 1994/5 to 2008 of the enrollment of African American students. In addition, Native American students seem over represented, but I don't have a source to back this up.
+```{r, echo=TRUE}
+health_full %>%
+  group_by(FAMRACE) %>%
+  summarise(p=n()/nrow(health_full))
+```
+Analyzing the number of NAs in GPA based off race
+```{r echo=TRUE}
+health %>%
+  group_by(FAMRACE) %>%
+  summarise(sum(is.na(CGPATOT))/n())
+```
+
+```{r echo=TRUE}
+health %>%
+  group_by(FAMRACE) %>%
+  summarise(mean(CGPATOT,na.rm=TRUE))
+```
+
+```{r echo=TRUE}
+health %>%
+  group_by(DADEDW1) %>%
+  summarise(mean(CGPATOT,na.rm=TRUE))
+```
+
+```{r echo=TRUE}
+health %>%
+  group_by(DADWKW1) %>%
+  summarise(mean(CGPATOT,na.rm=TRUE), n=n())
+```
+
+```{r echo=TRUE}
+health %>%
+  group_by(DADWKW1) %>%
+  summarise(mean(CGPASTEM,na.rm=TRUE), n=n())
 ```
