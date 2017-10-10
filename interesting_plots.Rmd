@@ -25,6 +25,80 @@ health_confirm<-health[confirmation_set,]
 health<-health[train_set,]
 ```
 
+Let's just visualize the data
+
+```{r, echo=FALSE}
+health %>%
+  ggplot() +
+  geom_bar(aes(BIO_SEX))
+```
+```{r, echo=FALSE}
+
+health %>%
+  ggplot() +
+  geom_bar(aes(USCITZEN))
+```
+```{r, echo=FALSE}
+health %>%
+  ggplot() +
+  geom_bar(aes(MUSBORN))
+```
+```{r, echo=FALSE}
+health %>%
+  ggplot() +
+  geom_bar(aes(DUSBORN))
+```
+```{r, echo=FALSE}
+health %>%
+  ggplot() +
+  geom_bar(aes(DADEDW1)) + 
+  coord_flip()
+```
+```{r, echo=FALSE}
+health %>%
+  ggplot() +
+  geom_bar(aes(CAGE))
+```
+
+```{r, echo=FALSE}
+health %>%
+  ggplot() +
+  geom_bar(aes(CGRADE))
+```
+```{r, echo=FALSE}
+health %>%
+  ggplot() +
+  geom_bar(aes(HEALTHED))
+```
+```{r, echo=FALSE}
+health %>%
+  ggplot() +
+  geom_density(aes(CGPATOT))
+```
+
+```{r, echo=FALSE}
+health %>%
+  ggplot() +
+  geom_density(aes(CGPASTEM))
+```
+
+```{r, echo=FALSE}
+health %>%
+  ggplot() +
+  geom_density(aes(CRPWB))
+```
+
+```{r, echo=FALSE}
+health %>%
+  ggplot() +
+  geom_density(aes(CSCLBELNG))
+```
+
+```{r, echo=FALSE}
+health %>%
+  ggplot() +
+  geom_density(aes(SOCSPPT))
+```
 
 ```{r, echo=FALSE}
 plot_Missing <- function(data_in, title = NULL){
@@ -46,21 +120,6 @@ health %>%
   geom_histogram(aes(CGPATOT,..density..),binwidth=.25) +
   facet_wrap(~BIO_SEX)
 ```
-```{r, echo=TRUE}
-dh_visits <- health %>%
-  filter(!(DENTXMW1 %in% c("Refused", "Don't know", "Not applicable")),
-         !(PHYSXMW1 %in% c("Refused", "Don't know", "Not applicable")))
-
-dh_visits %>%
-  group_by(DENTXMW1,PHYSXMW1) %>%
-  summarise(n=n())
-
-dh_visits %>%
-  ggplot() +
-  geom_histogram(aes(CGPATOT,..density..),binwidth=.25) +
-  facet_grid(DENTXMW1 ~ PHYSXMW1)
-```
-
 
 Plot that breaks down race versus health
 
@@ -89,21 +148,32 @@ health %>%
 ```{r, echo=FALSE}
 health %>%
   ggplot() +
-  geom_bar(aes(CGPASTEM)) +
+  geom_density(aes(CGPASTEM)) +
+  facet_wrap(~PARENTS)
+```
+
+```{r, echo=FALSE}
+health %>%
+  ggplot() +
+  geom_density(aes(SOCSPPT)) +
   facet_wrap(~PARENTS)
 ```
 
 A Two-Way ANOVA of parents effect on GPA
 ```{r, echo=TRUE}
 modvar<-health %>%
-  select(CGPASTEM,HASMOM,HASDAD) %>%
-  filter(!is.na(CGPASTEM)) %>%
-  group_by(HASMOM,HASDAD)
+  select(CGPATOT,HASMOM,HASDAD) %>% 
+  mutate(SINGLPAR=!(HASMOM&HASDAD)) %>%
+  filter(!is.na(CGPATOT)) 
 
-pmod<-lm(CGPASTEM ~ HASMOM + HASDAD, data=modvar)
+pmod<-lm(CGPATOT ~ SINGLPAR, data=modvar)
 anova(pmod)
 ```
-
+```{r echo=FALSE}
+modvar %>%
+  ggplot() +
+  geom_boxplot(aes(x=SINGLPAR,y=CGPATOT))
+```
 
 ```{r echo=TRUE}
 health %>% 
@@ -168,4 +238,20 @@ health %>%
 health %>%
   group_by(DADWKW1) %>%
   summarise(mean(CGPASTEM,na.rm=TRUE), n=n())
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, r echo=FALSE}
+library(GGally)
+cov_var <- health %>%
+  select(CGPATOT:CSCLBELNG,SOCSPPT,HEALTHED) 
+
+ggpairs(cov_var)
+
+```
+
+```{r echo=FALSE}
+health %>%
+  ggplot() +
+  geom_violin(aes(FAMRACE,CGPATOT)) +
+  coord_flip()
 ```
