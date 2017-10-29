@@ -40,9 +40,12 @@ readData <- function() {
   #e.g. '96 through 99' -> c(96,99) -> seq(96,99)
   factor_nas$FROMS = lapply(factor_nas$NAVALS, first)
   factor_nas$FROMS = lapply(factor_nas$FROMS, str_trim)
+  #Fix for other computer, str_trim wasn't working the same as my computer.
+  factor_nas$FROMS = lapply(factor_nas$FROMS, strtoi)
   
   factor_nas$LASTS = lapply(factor_nas$NAVALS, last)
   factor_nas$LASTS = lapply(factor_nas$LASTS, str_trim)
+  factor_nas$LASTS = lapply(factor_nas$LASTS, strtoi)
   
   factor_nas$NAVALS = mapply(seq, factor_nas$FROMS, factor_nas$LASTS)
   
