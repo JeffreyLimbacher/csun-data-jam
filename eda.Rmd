@@ -110,29 +110,92 @@ rhs_dropped <- rhs %>%
 mod <- lm (CGPATOTW1 ~ SOCSPPTW1, data=rhs_dropped, na.action=na.omit)
 ```
 
+```{r echo=TRUE}
+qqnorm(log(health$DEPREW1[health$DEPREW1>0]))
 
-How does self-esteem affect school performance
+```
+```{r echo=TRUE}
+health %>%
+  ggplot(aes(x=log(SELFESTW1))) +
+  geom_bar() 
+```
+
+Depression in students
+
 ```{r echo=TRUE}
 
-predictors <- c("INTELLW1" , "BODYIMGW1" , "MFUTEXPW1" , "DFUTEXPW1" , 
-                  "NEGLFEXPW1" , "SELFESTW1" , "MENTHFREW1" , "WLUNHLTHW1" , "DLYACT2W1" ,
-                  "DLYACT1W1" , "DLYACT3W1" , "DLYACT6W1" , "DLYACT7W1" , "BODYIMGW1" ,
-                  "MOMEDW1" , "MOMWKW1" , "DADEDW1" , "DADWKW1" , "IMPRELW1" , "CLUBACADW1" , 
-                  "CLUBMUARTW1" , "CLUBSPORTW1" , "SOCSPPTW1" , "POSFMENVW1", "BIO_SEX",
-                  "SLEEP")
+```
+
+```{r echo=TRUE}
+
+health$DLYACTAVG <- health %>%
+  transmute_at(vars(starts_with("DLYACT")), as.numeric) %>%
+  apply(1,function(x) mean(x, na.rm=TRUE))
+
+predictors <- c("INTELLW1" , "MFUTEXPW1" , "DFUTEXPW1", "CGPATOTW1",
+                  "NEGLFEXPW1" , "SELFESTW1" , "MENTHFREW1" , "WLUNHLTHW1" ,
+                  "DLYACTAVG", "BODYIMGW1" , "MOMEDW1" , "MOMWKW1" , "DADWKW1" , 
+                  "IMPRELW1" , "CLUBACADW1" , "CLUBMUARTW1" , "CLUBSPORTW1" , "SOCSPPTW1" , 
+                  "POSFMENVW1", "BIO_SEX", "SLEEP","SCLBELNG2W1","SCHLTRBLW1","CPRBEHLMW1")
 
 
 health_rmna <- na.omit(health[,c("DEPREW1",predictors)])
+health_rmna <- health_rmna %>%
+  filter(DEPREW1 > 0.0001) %>%
+  mutate(DEPREW1 = log(DEPREW1))
+
+```
+
+```{r echo=TRUE}
+
+health_rmna <- health_rmna[c(-337,-382,-172,-916),]
 
 
-intel_mod <- lm(as.formula(paste("log(DEPREW1) ~ ", paste(predictors,collapse="+"))),
+intel_mod <- lm(as.formula(paste("DEPREW1 ~ ", paste(c(predictors,"BODYIMGW1*BIO_SEX"),collapse="+"))),
                 data=health_rmna, na.action=na.omit)
 
 intel_mod2<-step(intel_mod,trace=0)
 anova(intel_mod2)
+summary(intel_mod2)
+```
+```{r echo=TRUE}
+
+as.tibble(cbind(CGPATOTW1=intel_mod2$model$CGPATOTW1,residuals=intel_mod$residuals)) %>%
+  ggplot() + 
+  geom_point(aes(x=CGPATOTW1,y=residuals))
+
+```
+```{r echo=TRUE}
+as.tibble(cbind(NEGLFEXPW1=intel_mod2$model$NEGLFEXPW1,residuals=intel_mod$residuals)) %>%
+  ggplot() + 
+  geom_point(aes(x=NEGLFEXPW1,y=residuals))
+```
+```{r echo=TRUE}
+as.tibble(cbind(SELFESTW1=intel_mod2$model$SELFESTW1,residuals=intel_mod$residuals)) %>%
+  ggplot() + 
+  geom_point(aes(x=SELFESTW1,y=residuals))
+```
+```{r echo=TRUE}
+as.tibble(cbind(MENTHFREW1=intel_mod2$model$MENTHFREW1,residuals=intel_mod$residuals)) %>%
+  ggplot() + 
+  geom_point(aes(x=MENTHFREW1,y=residuals))
 ```
 
 ```{r echo=TRUE}
-qqnorm(log(health$DEPREW1[health$DEPREW1>0]))
+as.tibble(cbind(MENTHFREW1=intel_mod2$model$MENTHFREW1,residuals=intel_mod$residuals)) %>%
+  ggplot() + 
+  geom_point(aes(x=MENTHFREW1,y=residuals))
+```
 
+```{r echo=TRUE}
+as.tibble(cbind(WLUNHLTHW1=intel_mod2$model$WLUNHLTHW1,residuals=intel_mod$residuals)) %>%
+  ggplot() + 
+  geom_point(aes(x=WLUNHLTHW1,y=residuals))
+```
+
+```{r echo=TRUE}
+
+rf_mod <- randomForest(intel_mod2$call$formula, data=health_rmna)
+
+importance(rf_mod)
 ```
