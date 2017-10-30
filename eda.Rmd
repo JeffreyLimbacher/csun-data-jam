@@ -1,0 +1,110 @@
+---
+title: "eda"
+author: "Team Infinite Limits"
+date: "October 29, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(DMwR2)
+library(randomForest)
+library(rpart.plot)
+source("label_data.R")
+knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(123)
+train_sample<-sample.int(nrow(health),size=round(.6*nrow(health)))
+inds=1:nrow(health)
+
+health_test<-health[inds[-train_sample],]
+health<-health[inds[train_sample],]
+
+```
+
+```{r echo=TRUE}
+
+health %>%
+  ggplot(aes(x=FAMRACEW1)) +
+  geom_bar(aes(group=1,y=..prop..)) +
+  coord_flip()
+
+```
+
+```{r echo=TRUE}
+
+health %>%
+  ggplot(aes(x=CGRADEW1)) +
+  geom_bar()
+
+```
+
+```{r echo=TRUE}
+health %>%
+  filter(!is.na(CSEXW1)) %>%
+  ggplot() +
+  geom_density(aes(x=CGPATOTW1),na.rm=TRUE) +
+  facet_wrap(~CSEXW1,drop=TRUE)
+```
+
+
+```{r echo=FALSE}
+set.seed(123)
+rh <- health %>%
+  select(-CGPASTEMW1,-BIRTHYR) %>%
+  filter(!is.na(CGPATOTW1))
+
+rf_model<-rpartXse(CGPATOTW1 ~ ., data=rh)
+
+prp(rf_model)
+```
+
+```{r echo=TRUE}
+health %>%
+  mutate_all(is.na) %>%
+  summarise_all(sum) %>%
+  gather(key="varname",value="sumnas")
+```
+
+```{r echo=TRUE}
+rhs <- health %>%
+  select(
+  DLYACT1W1,
+  PHYSXMW1,
+  DENTXMW1,
+  BARMEDCR,
+  H1GH53,
+  RELIGIONW1,
+  IMPRELW1,
+  YRSSCHLW1,
+  TWINW1,
+  TWNSMHSW1,
+  BIOPLVWT,
+  CLUBACADW1,
+  CLUBMUARTW1,
+  CLUBSPORTW1,
+  CRPWBW1,
+  CSCLBELNGW1,
+  SOCSPPTW1,
+  POSFMENVW1,
+  CATONMYW1,
+  COLEXPW1,
+  NGHSOCCAPW1,
+  MWARMTHW1,
+  DWARMTHW1,
+  MPOSRELW1,
+  CGPATOTW1
+  )
+set.seed(927)
+tree_mod <- rpartXse(CRPWBW1 ~ ., rhs)
+prp(tree_mod)
+```
+
+```{r echo=TRUE}
+rhs_dropped <- na.omit(rhs)
+rhs_dropped <- rhs %>%
+  mutate_if(is.factor,droplevels) %>%
+  select_if(function(x) length(unique(x))>1)
+
+mod <- lm (CGPATOTW1 ~ SOCSPPTW1, data=rhs_dropped, na.action=na.omit)
+```
