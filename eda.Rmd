@@ -7,6 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 library(tidyverse)
+library(rpart)
 library(DMwR2)
 library(randomForest)
 library(rpart.plot)
@@ -107,4 +108,31 @@ rhs_dropped <- rhs %>%
   select_if(function(x) length(unique(x))>1)
 
 mod <- lm (CGPATOTW1 ~ SOCSPPTW1, data=rhs_dropped, na.action=na.omit)
+```
+
+
+How does self-esteem affect school performance
+```{r echo=TRUE}
+
+predictors <- c("INTELLW1" , "BODYIMGW1" , "MFUTEXPW1" , "DFUTEXPW1" , 
+                  "NEGLFEXPW1" , "SELFESTW1" , "MENTHFREW1" , "WLUNHLTHW1" , "DLYACT2W1" ,
+                  "DLYACT1W1" , "DLYACT3W1" , "DLYACT6W1" , "DLYACT7W1" , "BODYIMGW1" ,
+                  "MOMEDW1" , "MOMWKW1" , "DADEDW1" , "DADWKW1" , "IMPRELW1" , "CLUBACADW1" , 
+                  "CLUBMUARTW1" , "CLUBSPORTW1" , "SOCSPPTW1" , "POSFMENVW1", "BIO_SEX",
+                  "SLEEP")
+
+
+health_rmna <- na.omit(health[,c("DEPREW1",predictors)])
+
+
+intel_mod <- lm(as.formula(paste("log(DEPREW1) ~ ", paste(predictors,collapse="+"))),
+                data=health_rmna, na.action=na.omit)
+
+intel_mod2<-step(intel_mod,trace=0)
+anova(intel_mod2)
+```
+
+```{r echo=TRUE}
+qqnorm(log(health$DEPREW1[health$DEPREW1>0]))
+
 ```
