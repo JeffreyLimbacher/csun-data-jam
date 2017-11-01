@@ -112,15 +112,53 @@ rhs_dropped <- rhs %>%
 mod <- lm (CGPATOTW1 ~ SOCSPPTW1, data=rhs_dropped, na.action=na.omit)
 ```
 
+
 ```{r echo=TRUE}
-qqnorm(log(health$DEPREW1[health$DEPREW1>0]))
+health %>%
+  ggplot(aes(x=health$DEPREW1)) +
+  geom_density() +
+  geom_point(x=health$DEPREW1,y=0)
+  
+```
+```{r echo=TRUE}
+
+health %>%
+  filter(!is.na(DEPREW1) & DEPREW1 > 0) %>%
+  mutate(DEPREW1=log(DEPREW1)) %>%
+  ggplot(aes(x=DEPREW1)) +
+  geom_histogram(binwidth = .15) +
+  geom_point(aes(x=DEPREW1,y=0))
+
+```
+```{r echo=TRUE}
+qqnorm(log(health$DEPREW1[health$DEPREW1>0])+runif(length(health$DEPREW1[health$DEPREW1>0]),min=-.03,max=.03))
 ```
 
 Depression in students
 
 ```{r echo=TRUE}
-
+health %>%
+  filter(!is.na(DEPREW1) & DEPREW1 > 0) %>%
+  mutate(DEPREW1=log(DEPREW1)) %>%
+  ggplot(aes(x=DEPREW1)) +
+  geom_density() +
+  facet_wrap(~SCHSUSPEN)
 ```
+```{r echo=TRUE}
+health %>%
+  filter(!is.na(DEPREW1) & DEPREW1 > 0) %>%
+  mutate(DEPREW1=log(DEPREW1)) %>%
+  ggplot() +
+  geom_point(aes(x=H1GH45,y=DEPREW1))
+```
+```{r echo=TRUE}
+
+health %>%
+  select(DLYACT1W1,DLYACT2W1,DLYACT3W1,DLYACT4W1,DLYACT5W1,DLYACT6W1,DLYACT7W1) %>%
+  mutate_all(as.numeric) %>%
+  cor(use="complete.obs")
+```
+
 
 ```{r echo=TRUE}
 
@@ -134,9 +172,9 @@ health$CLUBAVG <- health %>%
 predictors <- unique(c("INTELLW1" , "MFUTEXPW1" , "DFUTEXPW1", "CGPATOTW1",
                   "NEGLFEXPW1", "POSLFEXPW1" , "SELFESTW1" , "MENTHFREW1" , "WLUNHLTHW1" ,
                   "DLYACTAVG", "BODYIMGW1" , "MOMEDW1" , "MOMWKW1" , "DADWKW1" , 
-                  "IMPRELW1" ,"CLUBAVG" , "SOCSPPTW1" , 
+                  "IMPRELW1" ,"CLUBAVG" , "SOCSPPTW1" , "H1GH48", "ADOPTW1",
                   "POSFMENVW1", "BIO_SEX", "SLEEP","SCLBELNG2W1","SCHLTRBLW1","CPRBEHLMW1",
-                  "SCHEXPEL","PHYHFREQW1",))
+                  "SCHEXPEL","PHYHFREQW1","CRPWBW1","CSCLBELNGW1"))
 
 
 health_rmna <- na.omit(health[,c("DEPREW1",predictors)])
@@ -153,14 +191,20 @@ health_rmna <- health_rmna[c(-337,-382,-172,-916),]
 
 form<-as.formula(paste("DEPREW1 ~ ", paste(c(predictors,"BODYIMGW1*BIO_SEX"),collapse="+")))
 
-intel_mod <- lm(as.formula(paste("DEPREW1 ~ ", paste(c(predictors,"BODYIMGW1*BIO_SEX"),collapse="+"))),
+depmod <- lm(as.formula(paste("DEPREW1 ~ ", paste(c(predictors,"BODYIMGW1*BIO_SEX"),collapse="+"))),
                 data=health_rmna, na.action=na.omit)
 
-intel_mod_both<-step(intel_mod,trace=0)
+depmod_both<-step(depmod,direction="both",trace=0)
 
-summary(intel_mod2)
+summary(depmod_both)
 ```
 
+```{r echo=TRUE}
+leaps <- regsubsets(DEPREW1 ~ CGPATOTW1 + NEGLFEXPW1 + SELFESTW1 + MENTHFREW1 + 
+    WLUNHLTHW1 + DLYACTAVG + BODYIMGW1 + IMPRELW1 + H1GH48 + 
+    POSFMENVW1 + BIO_SEX + SLEEP + SCLBELNG2W1 + SCHLTRBLW1 + 
+    PHYHFREQW1 + CRPWBW1, data=health_rmna,really.big=TRUE)
+```
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
 
@@ -194,8 +238,8 @@ multiplot <- function(..., plotlist=NULL, cols) {
 graphs = list()
 
 for(i in 1:length(names(intel_mod2$model))) {
-  var_name=names(intel_mod2$model)[i]
-  temp <- as.tibble(cbind(X=intel_mod2$model[[var_name]],Y=intel_mod2$residuals))
+  var_name=names(depmod_both$model)[i]
+  temp <- as.tibble(cbind(X=depmod_both$model[[var_name]],Y=depmod_both$residuals))
   g <- ggplot(data=temp) +
     geom_point(aes(x=X,y=Y)) 
   graphs[[i]]<-g
@@ -206,35 +250,35 @@ for(i in 1:length(names(intel_mod2$model))) {
 
 ```{r echo=TRUE}
 
-as.tibble(cbind(CGPATOTW1=intel_mod2$model$CGPATOTW1,residuals=intel_mod$residuals)) %>%
+as.tibble(cbind(CGPATOTW1=depmod_both$model$CGPATOTW1,residuals=depmod_both$residuals)) %>%
   ggplot() + 
   geom_point(aes(x=CGPATOTW1,y=residuals))
 
 ```
 ```{r echo=TRUE}
-as.tibble(cbind(NEGLFEXPW1=intel_mod2$model$NEGLFEXPW1,residuals=intel_mod$residuals)) %>%
+as.tibble(cbind(NEGLFEXPW1=depmod_both$model$NEGLFEXPW1,residuals=depmod_both$residuals)) %>%
   ggplot() + 
   geom_point(aes(x=NEGLFEXPW1,y=residuals))
 ```
 ```{r echo=TRUE}
-as.tibble(cbind(SELFESTW1=intel_mod2$model$SELFESTW1,residuals=intel_mod$residuals)) %>%
+as.tibble(cbind(SELFESTW1=depmod_both$model$SELFESTW1,residuals=depmod_both$residuals)) %>%
   ggplot() + 
   geom_point(aes(x=SELFESTW1,y=residuals))
 ```
 ```{r echo=TRUE}
-as.tibble(cbind(MENTHFREW1=intel_mod2$model$MENTHFREW1,residuals=intel_mod$residuals)) %>%
+as.tibble(cbind(MENTHFREW1=depmod_both$model$MENTHFREW1,residuals=depmod_both$residuals)) %>%
   ggplot() + 
   geom_point(aes(x=MENTHFREW1,y=residuals))
 ```
 
 ```{r echo=TRUE}
-as.tibble(cbind(MENTHFREW1=intel_mod2$model$MENTHFREW1,residuals=intel_mod$residuals)) %>%
+as.tibble(cbind(MENTHFREW1=depmod_both$model$MENTHFREW1,residuals=depmod_both$residuals)) %>%
   ggplot() + 
   geom_point(aes(x=MENTHFREW1,y=residuals))
 ```
 
 ```{r echo=TRUE}
-as.tibble(cbind(WLUNHLTHW1=intel_mod2$model$WLUNHLTHW1,residuals=intel_mod$residuals)) %>%
+as.tibble(cbind(WLUNHLTHW1=depmod_both$model$WLUNHLTHW1,residuals=depmod_both$residuals)) %>%
   ggplot() + 
   geom_point(aes(x=WLUNHLTHW1,y=residuals))
 ```
@@ -245,4 +289,30 @@ set.seed(927)
 rf_mod <- randomForest(form, data=health_rmna)
 
 importance(rf_mod)
+```
+
+```{r echo=TRUE}
+predictors <- unique(c("INTELLW1" , "MFUTEXPW1" , "DFUTEXPW1", "CGPATOTW1",
+                  "NEGLFEXPW1", "POSLFEXPW1" , "SELFESTW1" , "MENTHFREW1" , "WLUNHLTHW1" ,
+                  "BODYIMGW1" , "MOMEDW1" , "MOMWKW1" , "DADWKW1" , 
+                  "IMPRELW1" ,"CLUBAVG" , "SOCSPPTW1" , "H1GH48", "ADOPTW1",
+                  "POSFMENVW1", "BIO_SEX", "SLEEP","SCLBELNG2W1","SCHLTRBLW1","CPRBEHLMW1",
+                  "SCHEXPEL","PHYHFREQW1","CRPWBW1","CSCLBELNGW1","DLYACT1W1",
+                  "DLYACT2W1","DLYACT3W1","DLYACT4W1","DLYACT5W1","DLYACT6W1","DLYACT7W1"))
+
+health_rmna <- na.omit(health[,c("DEPREW1",predictors)])
+health_rmna <-droplevels.data.frame(health_rmna)
+health_rmna <- health_rmna %>%
+  filter(DEPREW1 > 0.0001) %>%
+  mutate(DEPREW1 = log(DEPREW1))
+depmod.acts <- lm(as.formula(paste("DEPREW1 ~ ", paste(c(predictors,"BODYIMGW1*BIO_SEX"),collapse="+"))),
+                data=health_rmna, na.action=na.omit)
+depmod.acts2<-step(depmod.acts,trace=0)
+
+anova(depmod.acts2,depmod_both)
+```
+
+```{r echo=TRUE}
+leaps <- regsubsets(depmod.acts2$call$formula, data=health_rmna,really.big=TRUE)
+plot(leaps, scale="adjr")
 ```
