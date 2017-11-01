@@ -85,7 +85,7 @@ readData <- function() {
     var = factors_nested[[i, 1]]
     factor_mapping = unnest(factors_nested[i, 2])
     fact_levels = factor_mapping$ordinal
-    fact_labels = factor_mapping$description
+    fact_labels = str_trim(factor_mapping$description)
     health[var] = factor(health[[var]], fact_levels, labels = fact_labels)
   }
   

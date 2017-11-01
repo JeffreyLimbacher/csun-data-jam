@@ -32,6 +32,7 @@ health %>%
 
 ```
 
+
 ```{r echo=TRUE}
 
 health %>%
@@ -64,7 +65,8 @@ prp(rf_model)
 health %>%
   mutate_all(is.na) %>%
   summarise_all(sum) %>%
-  gather(key="varname",value="sumnas")
+  gather(key="varname",value="sumnas") %>%
+  arrange(desc(sumnas))
 ```
 
 ```{r echo=TRUE}
@@ -112,12 +114,6 @@ mod <- lm (CGPATOTW1 ~ SOCSPPTW1, data=rhs_dropped, na.action=na.omit)
 
 ```{r echo=TRUE}
 qqnorm(log(health$DEPREW1[health$DEPREW1>0]))
-
-```
-```{r echo=TRUE}
-health %>%
-  ggplot(aes(x=log(SELFESTW1))) +
-  geom_bar() 
 ```
 
 Depression in students
@@ -131,15 +127,20 @@ Depression in students
 health$DLYACTAVG <- health %>%
   transmute_at(vars(starts_with("DLYACT")), as.numeric) %>%
   apply(1,function(x) mean(x, na.rm=TRUE))
+health$CLUBAVG <- health %>%
+  transmute_at(vars(starts_with("CLUB")), as.numeric) %>%
+  apply(1,function(x) mean(x, na.rm=TRUE))
 
-predictors <- c("INTELLW1" , "MFUTEXPW1" , "DFUTEXPW1", "CGPATOTW1",
-                  "NEGLFEXPW1" , "SELFESTW1" , "MENTHFREW1" , "WLUNHLTHW1" ,
+predictors <- unique(c("INTELLW1" , "MFUTEXPW1" , "DFUTEXPW1", "CGPATOTW1",
+                  "NEGLFEXPW1", "POSLFEXPW1" , "SELFESTW1" , "MENTHFREW1" , "WLUNHLTHW1" ,
                   "DLYACTAVG", "BODYIMGW1" , "MOMEDW1" , "MOMWKW1" , "DADWKW1" , 
-                  "IMPRELW1" , "CLUBACADW1" , "CLUBMUARTW1" , "CLUBSPORTW1" , "SOCSPPTW1" , 
-                  "POSFMENVW1", "BIO_SEX", "SLEEP","SCLBELNG2W1","SCHLTRBLW1","CPRBEHLMW1")
+                  "IMPRELW1" ,"CLUBAVG" , "SOCSPPTW1" , 
+                  "POSFMENVW1", "BIO_SEX", "SLEEP","SCLBELNG2W1","SCHLTRBLW1","CPRBEHLMW1",
+                  "SCHEXPEL","PHYHFREQW1",))
 
 
 health_rmna <- na.omit(health[,c("DEPREW1",predictors)])
+health_rmna <-droplevels.data.frame(health_rmna)
 health_rmna <- health_rmna %>%
   filter(DEPREW1 > 0.0001) %>%
   mutate(DEPREW1 = log(DEPREW1))
@@ -150,14 +151,59 @@ health_rmna <- health_rmna %>%
 
 health_rmna <- health_rmna[c(-337,-382,-172,-916),]
 
+form<-as.formula(paste("DEPREW1 ~ ", paste(c(predictors,"BODYIMGW1*BIO_SEX"),collapse="+")))
 
 intel_mod <- lm(as.formula(paste("DEPREW1 ~ ", paste(c(predictors,"BODYIMGW1*BIO_SEX"),collapse="+"))),
                 data=health_rmna, na.action=na.omit)
 
-intel_mod2<-step(intel_mod,trace=0)
-anova(intel_mod2)
+intel_mod_both<-step(intel_mod,trace=0)
+
 summary(intel_mod2)
 ```
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+multiplot <- function(..., plotlist=NULL, cols) {
+    require(grid)
+
+    # Make a list from the ... arguments and plotlist
+    plots <- c(list(...), plotlist)
+
+    numPlots = length(plots)
+
+    # Make the panel
+    plotCols = cols                          # Number of columns of plots
+    plotRows = ceiling(numPlots/plotCols) # Number of rows needed, calculated from # of cols
+
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(plotRows, plotCols)))
+    vplayout <- function(x, y)
+        viewport(layout.pos.row = x, layout.pos.col = y)
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+        curRow = ceiling(i/plotCols)
+        curCol = (i-1) %% plotCols + 1
+        print(plots[[i]], vp = vplayout(curRow, curCol ))
+    }
+
+}
+
+graphs = list()
+
+for(i in 1:length(names(intel_mod2$model))) {
+  var_name=names(intel_mod2$model)[i]
+  temp <- as.tibble(cbind(X=intel_mod2$model[[var_name]],Y=intel_mod2$residuals))
+  g <- ggplot(data=temp) +
+    geom_point(aes(x=X,y=Y)) 
+  graphs[[i]]<-g
+}
+
+
+```
+
 ```{r echo=TRUE}
 
 as.tibble(cbind(CGPATOTW1=intel_mod2$model$CGPATOTW1,residuals=intel_mod$residuals)) %>%
@@ -195,7 +241,8 @@ as.tibble(cbind(WLUNHLTHW1=intel_mod2$model$WLUNHLTHW1,residuals=intel_mod$resid
 
 ```{r echo=TRUE}
 
-rf_mod <- randomForest(intel_mod2$call$formula, data=health_rmna)
+set.seed(927)
+rf_mod <- randomForest(form, data=health_rmna)
 
 importance(rf_mod)
 ```
