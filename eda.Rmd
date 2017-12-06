@@ -11,6 +11,7 @@ library(rpart)
 library(DMwR2)
 library(randomForest)
 library(rpart.plot)
+library(leaps)
 source("label_data.R")
 knitr::opts_chunk$set(echo = TRUE)
 
@@ -19,7 +20,7 @@ train_sample<-sample.int(nrow(health),size=round(.6*nrow(health)))
 inds=1:nrow(health)
 
 health_test<-health[inds[-train_sample],]
-health<-health[inds[train_sample],]
+#health<-health[inds[train_sample],]
 
 ```
 
@@ -131,7 +132,7 @@ health %>%
 
 ```
 ```{r echo=TRUE}
-qqnorm(log(health$DEPREW1[health$DEPREW1>0])+runif(length(health$DEPREW1[health$DEPREW1>0]),min=-.03,max=.03))
+qqnorm(log(health$DEPREW1[health$DEPREW1>0]))#+runif(length(health$DEPREW1[health$DEPREW1>0]),min=-.03,max=.03))
 ```
 
 Depression in students
@@ -162,25 +163,23 @@ health %>%
 
 ```{r echo=TRUE}
 
-health$DLYACTAVG <- health %>%
-  transmute_at(vars(starts_with("DLYACT")), as.numeric) %>%
-  apply(1,function(x) mean(x, na.rm=TRUE))
-health$CLUBAVG <- health %>%
-  transmute_at(vars(starts_with("CLUB")), as.numeric) %>%
-  apply(1,function(x) mean(x, na.rm=TRUE))
 
 predictors <- unique(c("INTELLW1" , "MFUTEXPW1" , "DFUTEXPW1", "CGPATOTW1",
                   "NEGLFEXPW1", "POSLFEXPW1" , "SELFESTW1" , "MENTHFREW1" , "WLUNHLTHW1" ,
-                  "DLYACTAVG", "BODYIMGW1" , "MOMEDW1" , "MOMWKW1" , "DADWKW1" , 
-                  "IMPRELW1" ,"CLUBAVG" , "SOCSPPTW1" , "H1GH48", "ADOPTW1",
+                  "BODYIMGW1" , "MOMEDW1" , "MOMWKW1" , "DADWKW1" , 
+                  "IMPRELW1" , "SOCSPPTW1" , "H1GH48", "ADOPTW1",
                   "POSFMENVW1", "BIO_SEX", "SLEEP","SCLBELNG2W1","SCHLTRBLW1","CPRBEHLMW1",
-                  "SCHEXPEL","PHYHFREQW1","CRPWBW1","CSCLBELNGW1"))
+                  "SCHEXPEL","PHYHFREQW1","CRPWBW1","CSCLBELNGW1",
+                  "DLYACT1W1","DLYACT2W1","DLYACT3W1","DLYACT4W1","DLYACT5W1","DLYACT6W1","DLYACT7W1",
+                  "CLUBACADW1","CLUBMUARTW1","CLUBSPORTW1","BIRTHYR"))
 
 
 health_rmna <- na.omit(health[,c("DEPREW1",predictors)])
 health_rmna <-droplevels.data.frame(health_rmna)
 health_rmna <- health_rmna %>%
-  filter(DEPREW1 > 0.0001) %>%
+  mutate_at(vars(INTELLW1,BODYIMGW1,IMPRELW1,H1GH48,starts_with("DLYACT"),starts_with("CLUB")), as.numeric)
+health_rmna <- health_rmna %>%
+  filter(DEPREW1 > 0) %>%
   mutate(DEPREW1 = log(DEPREW1))
 
 ```
@@ -189,21 +188,37 @@ health_rmna <- health_rmna %>%
 
 health_rmna <- health_rmna[c(-337,-382,-172,-916),]
 
-form<-as.formula(paste("DEPREW1 ~ ", paste(c(predictors,"BODYIMGW1*BIO_SEX"),collapse="+")))
+form<-as.formula(paste("DEPREW1 ~ ", paste(predictors,collapse="+")))
 
-depmod <- lm(as.formula(paste("DEPREW1 ~ ", paste(c(predictors,"BODYIMGW1*BIO_SEX"),collapse="+"))),
-                data=health_rmna, na.action=na.omit)
+depmod <- lm(form,data=health_rmna, na.action=na.omit)
 
 depmod_both<-step(depmod,direction="both",trace=0)
 
 summary(depmod_both)
 ```
 
+Verify that the daily activity variables are not colinear
+
 ```{r echo=TRUE}
-leaps <- regsubsets(DEPREW1 ~ CGPATOTW1 + NEGLFEXPW1 + SELFESTW1 + MENTHFREW1 + 
-    WLUNHLTHW1 + DLYACTAVG + BODYIMGW1 + IMPRELW1 + H1GH48 + 
-    POSFMENVW1 + BIO_SEX + SLEEP + SCLBELNG2W1 + SCHLTRBLW1 + 
-    PHYHFREQW1 + CRPWBW1, data=health_rmna,really.big=TRUE)
+pc<-health_rmna %>%
+  select_at(vars("DLYACT1W1","DLYACT2W1","DLYACT3W1","DLYACT4W1","DLYACT5W1","DLYACT6W1","DLYACT7W1")) %>%
+  cor()
+pc
+```
+
+Verify that the club activities are not colinear
+
+
+```{r echo=TRUE}
+pc<-health_rmna %>%
+  select_at(vars(starts_with("CLUB"))) %>%
+  cor()
+pc
+```
+
+```{r echo=TRUE}
+leaps <- regsubsets(depmod_both$call$formula, data=health_rmna, really.big=TRUE, nvmax=6)
+plot(leaps,scale="adjr")
 ```
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
@@ -288,7 +303,7 @@ as.tibble(cbind(WLUNHLTHW1=depmod_both$model$WLUNHLTHW1,residuals=depmod_both$re
 set.seed(927)
 rf_mod <- randomForest(form, data=health_rmna)
 
-importance(rf_mod)
+imp<-importance(rf_mod)
 ```
 
 ```{r echo=TRUE}
@@ -303,7 +318,7 @@ predictors <- unique(c("INTELLW1" , "MFUTEXPW1" , "DFUTEXPW1", "CGPATOTW1",
 health_rmna <- na.omit(health[,c("DEPREW1",predictors)])
 health_rmna <-droplevels.data.frame(health_rmna)
 health_rmna <- health_rmna %>%
-  filter(DEPREW1 > 0.0001) %>%
+  filter(DEPREW1 > 0) %>%
   mutate(DEPREW1 = log(DEPREW1))
 depmod.acts <- lm(as.formula(paste("DEPREW1 ~ ", paste(c(predictors,"BODYIMGW1*BIO_SEX"),collapse="+"))),
                 data=health_rmna, na.action=na.omit)
@@ -315,4 +330,22 @@ anova(depmod.acts2,depmod_both)
 ```{r echo=TRUE}
 leaps <- regsubsets(depmod.acts2$call$formula, data=health_rmna,really.big=TRUE)
 plot(leaps, scale="adjr")
+```
+
+```{r echo=TRUE}
+library(performanceEstimation)
+res <- performanceEstimation(
+  PredTask(depmod_both$call$formula, health_rmna, "DEPREW1"),
+  c(
+    Workflow(
+      learner = "lm",
+      post = "onlyPos"
+    ),
+    workflowVariants(learner = "rpartXse", learner.pars = list(se = c(0, 0.5, 1))),
+    Workflow(
+      learner="randomForest"
+    )
+  ),
+  EstimationTask(metrics = "nmse", method = CV(nReps = 5, nFolds = 10))
+)
 ```
