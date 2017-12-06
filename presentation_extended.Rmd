@@ -1,0 +1,326 @@
+---
+title: "Extracting Indicators of Adolescent Depression using Multivariate Regression"
+author: "Jeffrey Limbacher"
+date: "December 7th, 2017"
+output: beamer_presentation
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(cache=TRUE)
+library(tidyverse)
+library(rpart)
+library(DMwR2)
+library(randomForest)
+library(rpart.plot)
+library(leaps)
+library(performanceEstimation)
+library(knitr)
+source("label_data.R")
+
+#from http://www.cookbook-r.com/Graphs/Multiple_graphs_on_one_page_(ggplot2)/
+# Multiple plot function
+#
+# ggplot objects can be passed in ..., or to plotlist (as a list of ggplot objects)
+# - cols:   Number of columns in layout
+# - layout: A matrix specifying the layout. If present, 'cols' is ignored.
+#
+# If the layout is something like matrix(c(1,2,3,3), nrow=2, byrow=TRUE),
+# then plot 1 will go in the upper left, 2 will go in the upper right, and
+# 3 will go all the way across the bottom.
+#
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+unlab <- read_csv("ADDHEALTH Wave 1 FINAL COMPETITION DATASET.csv")
+```
+
+
+## CSUN Datajam Competition
+
+- Submission in the fist datajam competition held at CSUN.
+
+- Data set: The National Longitudinal Study of Adolescent to Adult Health (Add Health), Wave I.
+    - Survey done in 1994-95.
+
+- A sample set of variables was released on September 29th.
+
+- The full set of variables was released on October 27th.
+
+- Submission deadline was November 1st, at 9 PM.
+
+- Presentations were given on November 3rd.
+
+- My team, the Infinite Limits won "Best Reproducible Research". 
+
+## Data Format
+
+- The data was given in the form of a csv with numbers, and a data dictionary that defined the labels for those numbers ($n$=6504, $p$=123).
+
+```{r out.width="100%"}
+include_graphics("images/csv_unprocessed.png")
+```
+```{r out.width="100%", fig.cap="Top: unprocessed csv file. Bottom: data dictionary."}
+include_graphics("images/data_dict.png")
+```
+
+## Problems
+
+- The data was difficult to read with just the numbers.
+    - Slower data exploration
+
+- Missing values were given integer values which were unique to each column.
+    - Removing them required analyzing each column separately.
+
+- Multiple values could correspond to a missing value. 
+
+## Data Cleaning
+
+- I created a script that used the data dictionary to label the dataset in R.
+
+```{r out.width="100%"}
+include_graphics("images/csv_processed.png")
+```
+
+- This allowed for faster data visualization. 
+
+- Both graphs below were produced with the same call.
+```{r message=FALSE, warning=FALSE, fig.width=3, fig.height=2, out.width="40%"}
+
+unlab %>%
+  mutate(BIO_SEX=factor(BIO_SEX)) %>%
+  ggplot() +
+  geom_boxplot(aes(x=BIO_SEX,y=CGPATOTW1))
+
+health %>% 
+  ggplot() +
+  geom_boxplot(aes(x=BIO_SEX,y=CGPATOTW1))
+
+```
+
+## Teen Depression
+
+- A study published in *Pediatrics* showed that from 2005 to 2014, the number of teenage major depressive episodes increased from 8.7% in 2005 to 11.5 % in 2014. \footnote{Ramin Mojtabai, Mark Olfson, Beth Han, "National Trends in the Prevalence and Treatment of Depression in Adolescents and Young Adults"}
+
+- NPR reports that mental health problems can manifest as  chronic absence, low achievement, disruptive behavior and dropping out. \footnote{Anderson, "Mental Health In Schools: A Hidden Crisis Affecting Millions Of Students"}
+
+- The NPR story follows a student who was diagnosed with depression and bulimia.
+
+- "I felt like nobody wanted to help me".
+
+- What are indicators of depression?
+
+## Analyzing Depression within the ADD health set
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+p1 <- health %>%
+  ggplot(aes(x=DEPREW1)) +
+  geom_histogram(bins = 25) +
+  geom_point(aes(x=DEPREW1,y=0)) +
+  labs(x="Depression Wave") +
+  ggtitle("Histogram of Depression")
+
+health2 <- health %>%
+  filter(!is.na(DEPREW1) & DEPREW1 > 0) %>%
+  mutate(DEPREW1=log(DEPREW1))
+
+p2 <- health2 %>%
+  ggplot() +
+  geom_qq(aes(sample=DEPREW1)) +
+  ggtitle("QQ-Normal Plot vs log(Depression)")
+
+multiplot(p1,p2, cols = 1)
+```
+
+## Approach: Multivariable Regression
+
+- My team chose to analyze the relationship between depression and the other variables in the data set.
+
+- The linearity in the QQ-plot in $\log(\mathrm{Depression})$ was encouraging.
+
+- As a team of applied math students, we had a good background in the theory behind multivariable regression.
+
+- Most statistical methods we learned were for smaller $n$ and $p$.
+
+## Preparation for Regression
+
+- The data contained many missing values.
+    - Every row had an NA in at least one column.
+    
+- In order to use R's `lm` function, we narrow down the subset of variables based on the number of `NA` values.
+    - I did not choose to do KNN imputation because our $p$ was large.
+    - Unfamiliar with other forms of 
+
+- `step` was called to select the best predictors.
+
+```{r fig.height=4}
+health %>%
+  summarise_all(function(x) sum(is.na(x))) %>%
+  gather() %>%
+  arrange(desc(value)) %>%
+  filter(value > 2000) %>%
+  ggplot() +
+  geom_bar(aes(x=reorder(key,value),y=value),stat="identity") +
+  xlab("Column Name") +
+  ylab("Number of Missing Values") +
+  coord_flip()
+```
+
+
+```{r}
+predictors <- unique(c("INTELLW1" , "MFUTEXPW1" , "DFUTEXPW1", "CGPATOTW1",
+                  "NEGLFEXPW1", "POSLFEXPW1" , "SELFESTW1" , "MENTHFREW1" , "WLUNHLTHW1" ,
+                  "BODYIMGW1" , "MOMEDW1" , "MOMWKW1" , "DADWKW1" , 
+                  "IMPRELW1" , "SOCSPPTW1" , "H1GH48", "ADOPTW1",
+                  "POSFMENVW1", "BIO_SEX", "SLEEP","SCLBELNG2W1","SCHLTRBLW1","CPRBEHLMW1",
+                  "SCHEXPEL","PHYHFREQW1","CRPWBW1","CSCLBELNGW1",
+                  "DLYACT1W1","DLYACT2W1","DLYACT3W1","DLYACT4W1","DLYACT5W1","DLYACT6W1","DLYACT7W1",
+                  "CLUBACADW1","CLUBMUARTW1","CLUBSPORTW1"))
+
+form<-as.formula(paste("DEPREW1 ~ ", paste(c(predictors,"BODYIMGW1*BIO_SEX"),collapse="+")))
+health_rmna <- na.omit(health[,c("DEPREW1",predictors)])
+health_rmna <-droplevels.data.frame(health_rmna)
+health_rmna <- health_rmna %>%
+  mutate_at(vars(INTELLW1,BODYIMGW1,IMPRELW1,H1GH48,starts_with("DLYACT"),starts_with("CLUB")), as.numeric)
+health_rmna <- health_rmna %>%
+  filter(DEPREW1 > 0) %>%
+  mutate(DEPREW1 = log(DEPREW1))
+
+
+health_rmna <- health_rmna[c(-337,-382,-172,-916),]
+
+
+
+depmod <- lm(as.formula(paste("DEPREW1 ~ ", paste(c(predictors,"BODYIMGW1*BIO_SEX"),collapse="+"))),
+                data=health_rmna, na.action=na.omit)
+
+depmod_both<-step(depmod,direction="both",trace=0)
+
+```
+
+## Multivariable Regression: Residual analysis
+
+
+```{r}
+
+
+par(mfcol=c(1,2))
+
+plot(depmod_both, which=c(1,2))
+```
+
+## Multivariable Regression: Residual analysis
+
+```{r}
+plot(depmod_both, 5)
+```
+
+## Significant Variables
+
+- $R^2=.46$ and $F=72.44$.
+
+```{r echo=FALSE, warning=FALSE, results="asis"}
+library(knitr)
+library(pander)
+knitr::opts_chunk$set(size = "tiny")
+
+dep_sum <- summary(depmod_both)$coefficients
+
+coeffs <- as.tibble(cbind(Variable=names(depmod_both$coefficients),dep_sum)) %>%
+  mutate_at(vars(`Estimate`:`Pr(>|t|)`),as.double) %>%
+  arrange(`Pr(>|t|)`) %>% 
+  mutate_at(vars(`Estimate`:`Pr(>|t|)`), function(x) round(x,digits=3))  %>%
+  filter(`Pr(>|t|)` < .01) %>%
+  filter(Variable!="(Intercept)") %>%
+  select(-`Std. Error`)
+
+coeffs[1,"Variable"]<-"Mental Health Concerns"
+coeffs[2,"Variable"]<-"Self Esteem"
+coeffs[3,"Variable"]<-"Trouble in School"
+coeffs[4,"Variable"]<-"School absences"
+coeffs[5,"Variable"]<-"Enough Sleep"
+coeffs[6,"Variable"]<-"Positive Family Environment"
+coeffs[7,"Variable"]<-"Total GPA"
+coeffs[8,"Variable"]<-"Religion Importance"
+coeffs[9,"Variable"]<-"Hobbies"
+coeffs[10,"Variable"]<-"Health Issues"
+
+kable(coeffs)
+```
+
+## Analysis of Linear Model
+
+- Our model had an $R^2$ of .46 which indicates that there are more unexplained variables.
+- We didn't incorporate interaction terms.
+- There were many observations with missing values which were excluded (6504 $\rightarrow$ 1621).
+- Our submission to the data jam chose linear model for a variety of reasons, but can we do better?
+
+## After Datajam: Trying more models
+
+- After Datajam, tried more methods using the `PerformanceEstimation` library.
+
+- Compared the final Datajam linear model, 3 decision trees, and a random forest using $NMSE$ as the metric.
+  - $5$-fold cross validation repeated 5 times.
+  
+- A Wilcoxon-signed rank test comparing the rankings of the various runs of the model came out highly statistical significant, ($p < 1e-7$)
+
+```{r message=FALSE, warning=FALSE, fig.height = 4, fight.width = 4}
+
+load("./workflow_comp")
+
+plot(res)
+```
+
+## Table of NMSE values from Performance Estimation
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+ressum <- summary(res)
+res.tab<- tibble(stat=rownames(ressum$DEPREW1$lm),
+                 lm.nmse=ressum$DEPREW1$lm[,],
+                 rpart.v1.nmse=ressum$DEPREW1$rpartXse.v1[,],
+                 rpart.v2.nmse=ressum$DEPREW1$rpartXse.v2[,],
+                 rpart.v3.nmse=ressum$DEPREW1$rpartXse.v3[,],
+                 randomForest.nmse=ressum$DEPREW1$randomForest[,])
+```
+```{r}
+kable(res.tab[-7,],digits=3)
+```
+
+## Looking at Most Important Variables from Random Forest
+
+```{r}
+set.seed(1234)
+rf_mod <- randomForest(depmod_both$call$formula, data=health_rmna)
+importance(rf_mod,type=1)
+```
