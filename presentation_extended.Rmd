@@ -141,6 +141,20 @@ health %>%
 
 - What are indicators of depression?
 
+## Exploratory Data Analysis
+
+```{r}
+many_nas <- health %>%
+  summarise_all(function(x) sum(is.na(x))) %>%
+  gather() %>%
+  arrange(desc(value)) %>%
+  filter(value > 2000)
+
+health %>%
+  select.if(is.numeric) %>%
+  
+```
+
 ## Analyzing Depression within the ADD health set
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
@@ -307,10 +321,10 @@ plot(res)
 ```{r message=FALSE, warning=FALSE, include=FALSE}
 ressum <- summary(res)
 res.tab<- tibble(stat=rownames(ressum$DEPREW1$lm),
-                 lm.nmse=ressum$DEPREW1$lm[,],
-                 rpart.v1.nmse=ressum$DEPREW1$rpartXse.v1[,],
-                 rpart.v2.nmse=ressum$DEPREW1$rpartXse.v2[,],
-                 rpart.v3.nmse=ressum$DEPREW1$rpartXse.v3[,],
+                 lm=ressum$DEPREW1$lm[,],
+                 rpart.v1=ressum$DEPREW1$rpartXse.v1[,],
+                 rpart.v2=ressum$DEPREW1$rpartXse.v2[,],
+                 rpart.v3=ressum$DEPREW1$rpartXse.v3[,],
                  randomForest.nmse=ressum$DEPREW1$randomForest[,])
 ```
 ```{r}
@@ -321,6 +335,6 @@ kable(res.tab[-7,],digits=3)
 
 ```{r}
 set.seed(1234)
-rf_mod <- randomForest(depmod_both$call$formula, data=health_rmna)
-importance(rf_mod,type=1)
+rf_mod <- randomForest(form, data=health_rmna)
+varImpPlot(rf_mod, main="Variable Importance")
 ```
