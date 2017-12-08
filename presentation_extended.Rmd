@@ -16,10 +16,9 @@ library(rpart.plot)
 library(leaps)
 library(performanceEstimation)
 library(knitr)
-library(ROCR)
 library(kableExtra)
 source("label_data.R")
-
+knitr::opts_chunk$set(fig.pos = 'H')
 #from http://www.cookbook-r.com/Graphs/Multiple_graphs_on_one_page_(ggplot2)/
 # Multiple plot function
 #
@@ -72,7 +71,7 @@ unlab <- read_csv("ADDHEALTH Wave 1 FINAL COMPETITION DATASET.csv")
 
 ## CSUN Datajam Competition
 
-- Submission in the fist datajam competition held at CSUN.
+- Submission in the fist Datajam competition held at CSUN.
 
 - Data set: The National Longitudinal Study of Adolescent to Adult Health (Add Health), Wave I.
     - Survey done in 1994-95.
@@ -101,13 +100,13 @@ unlab <- read_csv("ADDHEALTH Wave 1 FINAL COMPETITION DATASET.csv")
 
 ## Approach
 
-- My team chose to multivariable linear regression of depression.
+- My team chose to multiple linear regression of depression.
 
-- As a team of applied math students, we had a good background in the theory behind multivariable regression.
+- As a team of applied math students, we had a good background in the theory behind multiple linear regression.
 
-- Most statistical methods we learned were for smaller $n$ and $p$.
+- Most statistical methods we learned in our courses are for smaller $n$ and $p$.
 
-- Unfamiliar with other modeling methods.
+- As a team, unfamiliar with other modeling methods.
 
 ## Data Format
 
@@ -123,7 +122,7 @@ include_graphics("images/data_dict.png")
 ## Problems
 
 - The data was difficult to read with just the numbers.
-    - Slower data exploration
+    - Slower data exploration.
 
 - Missing values were given integer values which were unique to each column.
     - Removing them required analyzing each column separately.
@@ -316,7 +315,7 @@ kable(coeffs)
 
 ## Analysis of Linear Model
 
-- Our model had an $R^2$ of .46 which indicates that there are more latent variables.
+- Our model had an $R^2$ of .46 which indicates that there are latent variables.
 - We didn't incorporate interaction terms.
 - There were many observations with missing values which were excluded (6504 $\rightarrow$ 1621).
 - We excluded many variables due to missing values (126 $\rightarrow$ 39)
@@ -330,7 +329,7 @@ kable(coeffs)
 - Compared the final Datajam linear model, 3 decision trees, and a random forest using $NMSE$ as the metric.
   - $10$-fold cross validation repeated 5 times.
   
-- A Wilcoxon-signed rank test comparing the rankings of the various runs of the model came out highly statistical significant, ($p < 10^{-9}$)
+- A Wilcoxon-signed rank test comparing the rankings of the various runs of the model came out  statistically significant, ($p < 10^{-9}$)
 
 ```{r message=FALSE, warning=FALSE, fig.height = 4, fight.width = 4}
 
@@ -364,7 +363,7 @@ varImpPlot(rf_mod, main="Variable Importance")
 
 ## Switching from Regression to Classification
 
-- The Mojtabai paper says there was an 8.7% depression rate in teens. 
+- The Mojtabai paper cite there was an 8.7% depression rate in teens in 2005. 
 
 - Strategy: set the top 8.7% of the data to depressed, and the rest to note depressed. Then try classification.
 
@@ -429,7 +428,7 @@ rf.prec <- sum((rf.pred == "Depressed" & health_rmna$DEPFACT == "Depressed"))/(s
     - Median Accuracy: 0.92
     
 ## Additional Slide
--$R^2$ = .4834
+- $R^2$ = .4834
 ```{r }
 predictors <- unique(c("INTELLW1" , "MFUTEXPW1" , "DFUTEXPW1", "CGPATOTW1",
                   "NEGLFEXPW1", "POSLFEXPW1" , "SELFESTW1" , "MENTHFREW1" , "WLUNHLTHW1" ,
