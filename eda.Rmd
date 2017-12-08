@@ -338,8 +338,72 @@ res <- performanceEstimation(
   PredTask(depmod_both$call$formula, health_rmna, "DEPREW1"),
   c(
     Workflow(
-      learner = "lm",
-      post = "onlyPos"
+      learner = "lm"
+    ),
+    workflowVariants(learner = "rpartXse", learner.pars = list(se = c(0, 0.5, 1))),
+    Workflow(
+      learner="randomForest"
+    )
+  ),
+  EstimationTask(metrics = "nmse", method = CV(nReps = 5, nFolds = 10))
+)
+```
+
+```{r echo=TRUE}
+library(performanceEstimation)
+
+set.seed(2)
+
+# n_dep <- sum(health_rmna$DEPFACT=="Depressed")
+# 
+# health_nodep <- health_rmna %>%
+#   filter(DEPFACT == "Not Depressed") %>%
+#   sample_n(5*n_dep)
+# 
+# health_dep <- health_rmna %>%
+#   filter(DEPFACT == "Depressed")
+# 
+# health_samp <- rbind(health_dep,health_nodep)
+
+glm_pred <- function(obj, test, p){
+  r<-ifelse(predict(obj,test,type="response")>p,"Not Depressed","Depressed")
+  as.vector(factor(r))
+}
+
+da_pred <- function(obj,test) {
+  predict(obj,test)$class
+}
+
+
+form <- as.formula(paste("DEPFACT ~ ", paste(predictors,collapse="+")))
+res <- performanceEstimation(
+  PredTask(form, health_rmna),
+  c(
+    workflowVariants(
+      learner = "glm",
+      learner.pars=list(family=binomial),
+      predictor.pars=list(p=c(.5,.9,.95)),
+      predictor="glm_pred"
+    ),
+    Workflow(learner = "lda",
+             predictor="da_pred"),
+    Workflow(learner = "naiveBayes",
+             deps=list(packages=c("e1071"))),
+    Workflow(
+      learner="randomForest"
+    )
+  ),
+  EstimationTask(metrics = c("prec","acc"), method = CV(nReps = 10, nFolds = 5))
+)
+save(res,file="workflow_class")
+```
+```{r echo=TRUE}
+library(performanceEstimation)
+res <- performanceEstimation(
+  PredTask(dep.nolog.step$call$formula, health_rmna2, "DEPREW1"),
+  c(
+    Workflow(
+      learner = "lm"
     ),
     workflowVariants(learner = "rpartXse", learner.pars = list(se = c(0, 0.5, 1))),
     Workflow(

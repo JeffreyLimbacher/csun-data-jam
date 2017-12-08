@@ -1,12 +1,13 @@
 ---
-title: "Extracting Indicators of Adolescent Depression using Multivariate Regression"
+title: "CSUN Datajam: Using Regression to Understand Depression"
 author: "Jeffrey Limbacher"
-date: "December 7th, 2017"
+date: "December 8th, 2017"
 output: beamer_presentation
 ---
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 knitr::opts_chunk$set(cache=TRUE)
+library(MASS)
 library(tidyverse)
 library(rpart)
 library(DMwR2)
@@ -15,6 +16,8 @@ library(rpart.plot)
 library(leaps)
 library(performanceEstimation)
 library(knitr)
+library(ROCR)
+library(kableExtra)
 source("label_data.R")
 
 #from http://www.cookbook-r.com/Graphs/Multiple_graphs_on_one_page_(ggplot2)/
@@ -84,6 +87,28 @@ unlab <- read_csv("ADDHEALTH Wave 1 FINAL COMPETITION DATASET.csv")
 
 - My team, the Infinite Limits won "Best Reproducible Research". 
 
+## Teen Depression
+
+- A study published in *Pediatrics* showed that from 2005 to 2014, the number of teenage major depressive episodes increased from 8.7% in 2005 to 11.5 % in 2014. \footnote{Ramin Mojtabai, Mark Olfson, Beth Han, "National Trends in the Prevalence and Treatment of Depression in Adolescents and Young Adults"}
+
+- NPR reports that mental health problems can manifest as  chronic absence, low achievement, disruptive behavior and dropping out. \footnote{Anderson, "Mental Health In Schools: A Hidden Crisis Affecting Millions Of Students"}
+
+- The NPR story follows a student who was diagnosed with depression and bulimia.
+
+- "I felt like nobody wanted to help me".
+
+- What are indicators of depression?
+
+## Approach
+
+- My team chose to multivariable linear regression of depression.
+
+- As a team of applied math students, we had a good background in the theory behind multivariable regression.
+
+- Most statistical methods we learned were for smaller $n$ and $p$.
+
+- Unfamiliar with other modeling methods.
+
 ## Data Format
 
 - The data was given in the form of a csv with numbers, and a data dictionary that defined the labels for those numbers ($n$=6504, $p$=123).
@@ -125,35 +150,10 @@ unlab %>%
 
 health %>% 
   ggplot() +
-  geom_boxplot(aes(x=BIO_SEX,y=CGPATOTW1))
+  geom_boxplot(aes(x=BIO_SEX,y=DEPREW1))
 
 ```
 
-## Teen Depression
-
-- A study published in *Pediatrics* showed that from 2005 to 2014, the number of teenage major depressive episodes increased from 8.7% in 2005 to 11.5 % in 2014. \footnote{Ramin Mojtabai, Mark Olfson, Beth Han, "National Trends in the Prevalence and Treatment of Depression in Adolescents and Young Adults"}
-
-- NPR reports that mental health problems can manifest as  chronic absence, low achievement, disruptive behavior and dropping out. \footnote{Anderson, "Mental Health In Schools: A Hidden Crisis Affecting Millions Of Students"}
-
-- The NPR story follows a student who was diagnosed with depression and bulimia.
-
-- "I felt like nobody wanted to help me".
-
-- What are indicators of depression?
-
-## Exploratory Data Analysis
-
-```{r}
-many_nas <- health %>%
-  summarise_all(function(x) sum(is.na(x))) %>%
-  gather() %>%
-  arrange(desc(value)) %>%
-  filter(value > 2000)
-
-health %>%
-  select.if(is.numeric) %>%
-  
-```
 
 ## Analyzing Depression within the ADD health set
 
@@ -177,15 +177,35 @@ p2 <- health2 %>%
 multiplot(p1,p2, cols = 1)
 ```
 
-## Approach: Multivariable Regression
+## Numeric Variable Correlations with log(Depression)
 
-- My team chose to analyze the relationship between depression and the other variables in the data set.
+```{r fig.width=11, out.width="110%"}
+many_nas <- health %>%
+  summarise_all(function(x) sum(is.na(x))) %>%
+  gather() %>%
+  arrange(desc(value)) %>%
+  filter(value > 2000)
 
-- The linearity in the QQ-plot in $\log(\mathrm{Depression})$ was encouraging.
+cors <- health %>%
+  select_if(is.numeric) %>%
+  select(-DEPREW1,-AID) %>%
+  summarise_all(function(x) cor(health$DEPREW1,x,use="pairwise.complete.obs")) %>%
+  gather(key="Variable", value="Correlation") %>%
+  arrange(Correlation)
+  
+cors$Inds = 0:(nrow(cors)-1)
+m=round(sqrt(nrow(cors)))
+cors %>%
+  ggplot(mapping=aes(x=m-Inds%%m,y=Inds%/%m)) +
+  geom_raster(aes(fill=Correlation)) + 
+  scale_fill_distiller(palette = "RdYlBu") +
+  geom_label(aes(label=paste0(Variable,'\n',round(Correlation,digits=2)))) +
+  ylab("") + xlab("")  +
+  theme(panel.background = element_blank(), 
+        axis.text=element_blank(),
+        axis.ticks=element_blank())
+```
 
-- As a team of applied math students, we had a good background in the theory behind multivariable regression.
-
-- Most statistical methods we learned were for smaller $n$ and $p$.
 
 ## Preparation for Regression
 
@@ -227,6 +247,7 @@ health_rmna <- na.omit(health[,c("DEPREW1",predictors)])
 health_rmna <-droplevels.data.frame(health_rmna)
 health_rmna <- health_rmna %>%
   mutate_at(vars(INTELLW1,BODYIMGW1,IMPRELW1,H1GH48,starts_with("DLYACT"),starts_with("CLUB")), as.numeric)
+health_rmna2 <- health_rmna
 health_rmna <- health_rmna %>%
   filter(DEPREW1 > 0) %>%
   mutate(DEPREW1 = log(DEPREW1))
@@ -295,19 +316,21 @@ kable(coeffs)
 
 ## Analysis of Linear Model
 
-- Our model had an $R^2$ of .46 which indicates that there are more unexplained variables.
+- Our model had an $R^2$ of .46 which indicates that there are more latent variables.
 - We didn't incorporate interaction terms.
 - There were many observations with missing values which were excluded (6504 $\rightarrow$ 1621).
-- Our submission to the data jam chose linear model for a variety of reasons, but can we do better?
+- We excluded many variables due to missing values (126 $\rightarrow$ 39)
+- Our submission to the data jam chose linear model for a variety of reasons, but do other models do better?
+- Additionally, what if we tried classification as opposed to regression?
 
 ## After Datajam: Trying more models
 
-- After Datajam, tried more methods using the `PerformanceEstimation` library.
+- After Datajam, compared models using the `PerformanceEstimation` library.
 
 - Compared the final Datajam linear model, 3 decision trees, and a random forest using $NMSE$ as the metric.
-  - $5$-fold cross validation repeated 5 times.
+  - $10$-fold cross validation repeated 5 times.
   
-- A Wilcoxon-signed rank test comparing the rankings of the various runs of the model came out highly statistical significant, ($p < 1e-7$)
+- A Wilcoxon-signed rank test comparing the rankings of the various runs of the model came out highly statistical significant, ($p < 10^{-9}$)
 
 ```{r message=FALSE, warning=FALSE, fig.height = 4, fight.width = 4}
 
@@ -316,7 +339,7 @@ load("./workflow_comp")
 plot(res)
 ```
 
-## Table of NMSE values from Performance Estimation
+## Table of NMSE Values from Performance Estimation
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
 ressum <- summary(res)
@@ -337,4 +360,99 @@ kable(res.tab[-7,],digits=3)
 set.seed(1234)
 rf_mod <- randomForest(form, data=health_rmna)
 varImpPlot(rf_mod, main="Variable Importance")
+```
+
+## Switching from Regression to Classification
+
+- The Mojtabai paper says there was an 8.7% depression rate in teens. 
+
+- Strategy: set the top 8.7% of the data to depressed, and the rest to note depressed. Then try classification.
+
+
+
+```{r}
+health_rmna <- health_rmna %>%
+  mutate(DEPFACT = factor(ifelse(DEPREW1 >= quantile(DEPREW1,probs=(1-.087)), "Depressed", "Not Depressed")))
+kable(summary(health_rmna$DEPFACT), caption="Distribution after setting the top 8.7% to Depressed.")
+```
+
+- Compare different classification methods.
+    - Logsitic regression
+    - Linear discriminant analysis (LDA)
+    - Naive Bayes
+    - Random forest
+
+## Comparing Classification Methods
+
+- Precision = $\frac{TP}{TP+FP}$
+- glm.v1, v2, and v3 classified a child as depressed if $p(x) > .5$, .9, and .95 respectively.
+
+```{r fig.height=6, fig.width=9}
+load("./workflow_class")
+plot(res)
+```
+
+## Wilcoxon-Signed Rank Test vs Random Forest
+
+```{r message=FALSE, warning=FALSE}
+prec.test <- pairedComparisons(res,baseline="randomForest")$prec$WilcoxonSignedRank.test[,,]
+acc.test <- pairedComparisons(res,baseline="randomForest")$acc$WilcoxonSignedRank.test[,,]
+prec.test <- prec.test[,-2]
+acc.test <- acc.test[,-2]
+colnames(prec.test) <- c("prec.Med", "prec.p")
+colnames(acc.test) <- c("acc.Med", "acc.p")
+kable(cbind.data.frame(prec.test,acc.test),digits=3)
+```
+
+## Important Variables from the Random Forest, Classification
+
+```{r message=FALSE,warning=FALSE}
+set.seed(1234)
+form <- as.formula(paste("DEPFACT ~ ", paste(predictors,collapse="+")))
+rf_mod <- randomForest(form, data=health_rmna)
+varImpPlot(rf_mod, main="Variable Importance")
+```
+
+## Conclusions
+
+```{r}
+rf.pred <- as.vector(predict(rf_mod))
+rf.acc <- sum(rf.pred == health_rmna$DEPFACT)/length(rf.pred)
+rf.prec <- sum((rf.pred == "Depressed" & health_rmna$DEPFACT == "Depressed"))/(sum((rf.pred == "Depressed" & health_rmna$DEPFACT == "Depressed")) + sum((rf.pred == "Depressed" & health_rmna$DEPFACT == "Not Depressed")))
+```
+
+- For the regression problem, the simple linear model performed better using $NMSE$ than decision trees and the random forest.
+    - $R^2 = 0.46$
+    - Median $NMSE$ = 0.56
+- For the classification problem, the randomForest performed better using precision and accuracy than logistic regression, lda, and naive Bayes.
+    - Median Precision: 0.83
+    - Median Accuracy: 0.92
+    
+## Additional Slide
+-$R^2$ = .4834
+```{r }
+predictors <- unique(c("INTELLW1" , "MFUTEXPW1" , "DFUTEXPW1", "CGPATOTW1",
+                  "NEGLFEXPW1", "POSLFEXPW1" , "SELFESTW1" , "MENTHFREW1" , "WLUNHLTHW1" ,
+                  "BODYIMGW1" , "MOMEDW1" , "MOMWKW1" , "DADWKW1" , 
+                  "IMPRELW1" , "SOCSPPTW1" , "H1GH48", "ADOPTW1",
+                  "POSFMENVW1", "BIO_SEX", "SLEEP","SCLBELNG2W1","SCHLTRBLW1","CPRBEHLMW1",
+                  "SCHEXPEL","PHYHFREQW1","CRPWBW1","CSCLBELNGW1",
+                  "DLYACT1W1","DLYACT2W1","DLYACT3W1","DLYACT4W1","DLYACT5W1","DLYACT6W1","DLYACT7W1",
+                  "CLUBACADW1","CLUBMUARTW1","CLUBSPORTW1"))
+
+form<-as.formula(paste("DEPREW1 ~ ", paste(c(predictors),collapse="+")))
+
+dep.nolog <- lm(form, data=health_rmna2)
+
+dep.nolog.step <-step(dep.nolog,direction="both",trace=0)
+coef(summary(dep.nolog.step)) %>%
+  kable(row.names=TRUE,format="latex", digits=3) %>%
+  kable_styling(font_size=5)
+```
+
+
+## Performance Estimation of Non-log Transform
+```{r}
+load("./workflow_nolog")
+plot(res)
 ```
